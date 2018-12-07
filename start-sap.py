@@ -1,13 +1,23 @@
 #!/usr/bin/env python
 
 import subprocess as sub
-import pdb
+import logging
+import time
+import argparse
 
 
 class ProcessGroup:
-    def __init__(self, server_nr):
+    def __init__(self, server_nr, max_retries=4):
         self.server_nr = server_nr
         self.procs = self.update_procs_status()
+        self.max_retries = max_retries
+
+    def backoff_generator(self,):
+        yield 1
+        n = 1
+        while True:
+            yield 5 * n
+            n += 1
 
     def start_process(self,):
         cmd = [
@@ -16,14 +26,44 @@ class ProcessGroup:
             str(self.server_nr),
             "-function",
             "RestartSystem",
-            "-format",
-            "script",
         ]
-        proc = sub.Popen(cmd, stdout=sub.PIPE)
-        proc.communicate()
-        proc.wait()
 
+        backgen = self.backoff_generator()
+        retries = 1
         started = False
+
+        while not started and retries <= self.max_retries:
+            logging.info(
+                "Starting process group {}. This is retry number {} of {}".format(
+                    self.server_nr, retries, self.max_retries
+                )
+            )
+            p = sub.Popen(cmd, stdout=sub.PIPE)
+            p.communicate()
+            p.wait()
+
+            sleepTime = next(backgen)
+            logging.info("Going to sleep for {} minute(s)...".format(sleepTime))
+            time.sleep(sleepTime * 60)
+            self.procs = self.update_procs_status()
+
+            if self.everything_green():
+                logging.info(
+                    "Successfull start of process group {}".format(self.server_nr)
+                )
+                started = True
+                break
+
+            retries += 1
+
+        if not started:
+            logging.info(
+                "Failed to start process group {} after {} retries.".format(
+                    self.server_nr, self.max_retries
+                )
+            )
+
+        return started
 
     def update_procs_status(self,):
         cmd = [
@@ -117,5 +157,37 @@ class OutputProcessor:
         return procs
 
 
-pg = ProcessGroup(0)
-pdb.set_trace()
+def start_sequence(sequence):
+    all_ok = True
+    for seq_nr in sequence:
+        pg = ProcessGroup(seq_nr)
+        ret = pg.start_process()
+        if not ret:
+            logging.info(
+                "Could not start sequence because process group {} failed. Giving up.".format(
+                    seq_nr
+                )
+            )
+            all_ok = False
+            break
+    logging.info("Successfully started sequence") if all_ok else logging.info(
+        "Startup sequence failed."
+    )
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s %(levelname)s: %(message)s",
+        datefmt="%m/%d/%Y %I:%M:%S %p",
+        level=logging.INFO,
+    )
+
+    parser = argparse.ArgumentParser(description="Start SAP sequence program")
+    parser.add_argument(
+        "sequence",
+        type=int,
+        nargs="+",
+        help="The sequence of process groups to be started, in order.",
+    )
+    args = parser.parse_args()
+    start_sequence(args.sequence)
