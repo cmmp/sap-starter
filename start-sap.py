@@ -4,6 +4,7 @@ import subprocess as sub
 import logging
 import time
 import argparse
+import json
 
 
 class ProcessGroup:
@@ -175,6 +176,11 @@ def start_sequence(sequence):
     )
 
 
+def show_status(status):
+    pg = ProcessGroup(status)
+    print(json.dumps(pg.get_procs(), indent=2))
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s",
@@ -184,10 +190,24 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Start SAP sequence program")
     parser.add_argument(
-        "sequence",
+        "--start",
         type=int,
         nargs="+",
         help="The sequence of process groups to be started, in order.",
     )
+    parser.add_argument(
+        "--status",
+        action="store",
+        type=int,
+        nargs=1,
+        help="The process group number to show the status.",
+        required=False,
+    )
+
     args = parser.parse_args()
-    start_sequence(args.sequence)
+    if args.start is not None:
+        start_sequence(args.sequence)
+    elif args.status is not None:
+        show_status(args.status)
+    else:
+        parser.print_help()
