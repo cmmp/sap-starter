@@ -208,6 +208,6 @@ if __name__ == "__main__":
     if args.start is not None:
         start_sequence(args.start)
     elif args.status is not None:
-        show_status(args.status)
+        show_status(args.status[0])
     else:
         parser.print_help()
