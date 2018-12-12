@@ -206,7 +206,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.start is not None:
-        start_sequence(args.sequence)
+        start_sequence(args.start)
     elif args.status is not None:
         show_status(args.status)
     else:
