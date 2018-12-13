@@ -20,6 +20,21 @@ class ProcessGroup:
             yield 5 * n
             n += 1
 
+    def stop_process(self,):
+        cmd = [
+            "/usr/sap/hostctrl/exe/sapcontrol",
+            "-nr",
+            str(self.server_nr),
+            "-function",
+            "StopSystem",
+        ]
+
+        logging.info("Stopping process group {}.".format(self.server_nr))
+
+        p = sub.Popen(cmd, stdout=sub.PIPE)
+        p.communicate()
+        p.wait()
+
     def start_process(self,):
         cmd = [
             "/usr/sap/hostctrl/exe/sapcontrol",
@@ -176,6 +191,13 @@ def start_sequence(sequence):
     )
 
 
+def stop_sequence(sequence):
+    for seq_nr in sequence:
+        pg = ProcessGroup(seq_nr)
+        pg.stop_process()
+    logging.info("Finished issuing all stop commands")
+
+
 def show_status(status):
     pg = ProcessGroup(status)
     print(json.dumps(pg.get_procs(), indent=2))
@@ -196,6 +218,12 @@ if __name__ == "__main__":
         help="The sequence of process groups to be started, in order.",
     )
     parser.add_argument(
+        "--stop",
+        type=int,
+        nargs="+",
+        help="The sequence of process groups to be stopped, in order.",
+    )
+    parser.add_argument(
         "--status",
         action="store",
         type=int,
@@ -207,6 +235,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.start is not None:
         start_sequence(args.start)
+    elif args.stop is not None:
+        stop_sequence(args.stop)
     elif args.status is not None:
         show_status(args.status[0])
     else:
